@@ -1,0 +1,188 @@
+import numpy as np
+
+
+
+def find_det(A, counter):
+    det = 1.0
+    for i in range(n):
+        det *= A[i][i]
+    det *= (-1) ** counter
+    return det
+
+
+def element_grounding(A, b, k):
+    for i in range(k + 1, n):
+            change = A[i][k] / A[k][k]
+            A[i][k] = 0.0
+            for j in range(k + 1, n):
+                A[i][j] -= change * A[k][j]
+            b[i] -= change * b[k]
+    return A, b
+
+
+def dot_parser(s):
+    return float(s.replace(',', '.'))
+
+
+def gauss_main_element_method(A, b):
+    n = len(A)
+    A = list(map(lambda x: x.copy(), A))
+    b = b.copy()
+    counter = 0
+    for row in range(n):
+        max_value = abs(A[row][row])
+        max_row = row
+        for j in range(row + 1, n):
+            if abs(A[row][j]) > max_value:
+                max_value = abs(A[row][j])
+                max_row = j
+        if abs(A[max_row][row]) < 1e-50:
+            raise ValueError("Матрица вырождена, конец связи")
+        A_max_row = A[max_row].copy()
+        if row != max_row:
+            A[max_row] = A[row].copy()
+            A[row] = A_max_row.copy()
+            counter += 1
+        A, b = element_grounding(A, b, row)
+        det = find_det(A, counter)
+    
+    solv = [0] * n
+    for j in range(n - 1, 0, -1):
+        res = 0
+        for i in range(j + 1, n):
+            res += A[j][i] * solv[i]
+        solv[i] = (b[i] - res) / A[i][i]
+    return solv, A, det
+
+
+
+def main():
+    print("Выберите метод ввода коэффициентов:")
+    print(" 1 - С клавиатуры")
+    print(" 2 - Из файла")
+    operation_mode = input("Введите 1 или 2: ").strip()
+
+    if operation_mode == "1":
+        try:
+            n = int(input("Введите ранг матрицы (n <= 20): "))
+        except ValueError:
+            print("Некорректное значение ранга матрицы")
+            return
+        if n > 20 or n <= 0:
+            print("Ранг матрицы должен быть в диапазоне 1..20")
+            return
+
+        print("Введите коэффициенты матрицы A построчно, разделяя элементы пробелами:")
+        A = []
+        for i in range(n):
+            row_str = input(f"Строка {i + 1}: ").split()
+            if len(row_str) != n:
+                print(f"Ошибка: необходимо ввести ровно {n} коэффициентов")
+                return
+            try:
+                row = [dot_parser(x) for x in row_str]
+            except ValueError:
+                print("Ошибка преобразования строки в число")
+                return
+            A.append(row)
+
+        b_str = input("Введите столбец свободных членов B (через пробел): ").split()
+        if len(b_str) != n:
+            print(f"Ошибка: необходимо ввести ровно {n} свободных членов")
+            return
+        try:
+            b = [dot_parser(x) for x in b_str]
+        except ValueError:
+            print("Ошибка преобразования строки в число")
+            return
+
+    elif operation_mode == "2":
+        filename = input("Введите имя файла: ").strip()
+        try:
+            with open(filename, "r") as f:
+                lines = [line.strip() for line in f if line.strip()]
+            n = int(lines[0])
+            if n > 20 or n <= 0:
+                print("Ранг матрицы должен быть в диапазоне 1..20")
+                return
+            if len(lines) != n + 2:
+                print("Неверный формат файла")
+                return
+            A = []
+            for i in range(1, n + 1):
+                row_str = lines[i].split()
+                if len(row_str) != n:
+                    print(f"Ошибка: в строке {i} должно быть {n} коэффициентов!")
+                    return
+                row = [dot_parser(x) for x in row_str]
+                A.append(row)
+            b = [dot_parser(x) for x in lines[n + 1].split()]
+            if len(b) != n:
+                print("Ошибка: количество свободных членов не совпадает с рангом матрицы")
+                return
+        except Exception as e:
+            print("Ошибка при чтении файла:", e)
+            return
+    else:
+        print("ну и как мы собрались вводить?")
+        return
+
+    A_orig = [row[:] for row in A]
+    b_orig = b[:]
+
+    try:
+        result = gauss_main_element_method(A, b)
+        x = result[0]
+        A_triangular = result[1]
+        det = result[2]
+    except Exception as e:
+        print("Ошибка при решении системы:", e)
+        return
+
+    residuals = []
+    for i in range(len(A_orig)):
+        s = sum(A_orig[i][j] * x[j] for j in range(len(A_orig)))
+        residuals.append(s - b_orig[i])
+
+    A_np = np.array(A_orig, dtype=float)
+    b_np = np.array(b_orig, dtype=float)
+    try:
+        x_np = np.linalg.solve(A_np, b_np)
+        det_np = np.linalg.det(A_np)
+    except Exception as e:
+        print("Numpy погиб", e)
+        x_np = None
+        det_np = None
+
+
+    print("\n---Результаты! Внимание на экран\n")
+    print("Треугольная матрица:")
+    for i in range(n):
+        row_str = ""
+        for j in range(n):
+            row_str += f"{A_triangular[i][j]: 10.10f} "
+        row_str += "| " + f"{b[i]: 10.10f}"
+        print(row_str)
+
+    print("\nВектор неизвестных::")
+    for i in range(n):
+        print(f"  x{i + 1} = {x[i]: .10f}")
+
+    print("\nВектор невязок:")
+    for i in range(n):
+        print(f"  r{i + 1} = {residuals[i]: .10e}")
+
+    print("\nПроверка с NumPy:")
+    if x_np is not None:
+        for i in range(n):
+            print(f"  x{i + 1} = {x_np[i]: .10f}")
+
+    print("\nОпределитель матрицы:")
+    print(f"  det = {det: .10f}")
+    print("Проверка с NumPy:")
+    if det_np is not None:
+        print(f"  det = {det_np: .10f}")
+
+
+if __name__ == "__main__":
+    main()
