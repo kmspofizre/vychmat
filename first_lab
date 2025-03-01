@@ -1,8 +1,7 @@
 import numpy as np
 
 
-
-def find_det(A, counter):
+def find_det(A, counter, n):
     det = 1.0
     for i in range(n):
         det *= A[i][i]
@@ -10,13 +9,13 @@ def find_det(A, counter):
     return det
 
 
-def element_grounding(A, b, k):
+def element_grounding(A, b, k, n):
     for i in range(k + 1, n):
-            change = A[i][k] / A[k][k]
-            A[i][k] = 0.0
-            for j in range(k + 1, n):
-                A[i][j] -= change * A[k][j]
-            b[i] -= change * b[k]
+        factor = A[i][k] / A[k][k]
+        A[i][k] = 0.0
+        for j in range(k + 1, n):
+            A[i][j] -= factor * A[k][j]
+        b[i] -= factor * b[k]
     return A, b
 
 
@@ -26,34 +25,34 @@ def dot_parser(s):
 
 def gauss_main_element_method(A, b):
     n = len(A)
-    A = list(map(lambda x: x.copy(), A))
+    A = [row.copy() for row in A]
     b = b.copy()
     counter = 0
+
     for row in range(n):
         max_value = abs(A[row][row])
         max_row = row
-        for j in range(row + 1, n):
-            if abs(A[row][j]) > max_value:
-                max_value = abs(A[row][j])
-                max_row = j
+        for i in range(row + 1, n):
+            if abs(A[i][row]) > max_value:
+                max_value = abs(A[i][row])
+                max_row = i
         if abs(A[max_row][row]) < 1e-50:
             raise ValueError("Матрица вырождена, конец связи")
-        A_max_row = A[max_row].copy()
         if row != max_row:
-            A[max_row] = A[row].copy()
-            A[row] = A_max_row.copy()
+            A[row], A[max_row] = A[max_row], A[row]
+            b[row], b[max_row] = b[max_row], b[row]
             counter += 1
-        A, b = element_grounding(A, b, row)
-        det = find_det(A, counter)
-    
-    solv = [0] * n
-    for j in range(n - 1, 0, -1):
-        res = 0
-        for i in range(j + 1, n):
-            res += A[j][i] * solv[i]
-        solv[i] = (b[i] - res) / A[i][i]
-    return solv, A, det
+        A, b = element_grounding(A, b, row, n)
 
+    det = find_det(A, counter, n)
+
+    solv = [0] * n
+    for i in range(n - 1, -1, -1):
+        sum_ax = 0.0
+        for j in range(i + 1, n):
+            sum_ax += A[i][j] * solv[j]
+        solv[i] = (b[i] - sum_ax) / A[i][i]
+    return solv, A, det
 
 
 def main():
@@ -150,10 +149,9 @@ def main():
         x_np = np.linalg.solve(A_np, b_np)
         det_np = np.linalg.det(A_np)
     except Exception as e:
-        print("Numpy погиб", e)
+        print("Ошибка при решении системы с помощью NumPy:", e)
         x_np = None
         det_np = None
-
 
     print("\n---Результаты! Внимание на экран\n")
     print("Треугольная матрица:")
@@ -164,7 +162,7 @@ def main():
         row_str += "| " + f"{b[i]: 10.10f}"
         print(row_str)
 
-    print("\nВектор неизвестных::")
+    print("\nВектор неизвестных:")
     for i in range(n):
         print(f"  x{i + 1} = {x[i]: .10f}")
 
